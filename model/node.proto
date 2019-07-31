@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package model;
+
+message Repository {
+    int32 DataCenter = 1;
+    int32 Area = 2;
+    int32 Rack = 3;
+}
+
+enum ClusterHealth {
+    CH_Unknown = 0;
+    CH_Normal = 1;
+    CH_Unavailable = 2;
+    CH_NotInitialize = 3;
+    CH_NotSafe = 4;
+}
+
+enum NodeHealth {
+    Suspect = 0;
+    Alive = 1;
+    Dead = 2;
+}
+
+enum NodeStatus {
+    Unknown = 0;
+    Normal = 1;
+    Unavailable = 2;
+    New = 3;
+    Recovering = 4;
+}
+
+message Partition {
+    int32 version = 1; //分区存储算法版本
+    int32 id = 2; //分区集群id
+    int32 index = 3; //分区在所在节点的索引值
+}
+message NodeStorageInfo {
+    Repository repository = 1;
+    int32 partitionSize = 2;
+    int32 replicaSize = 3;
+    NodeHealth health = 4;
+    NodeStatus status = 5;
+    repeated Partition partitions = 6;
+}
+
+message NodeStorageStat{
+    
+}
+
+message NodeHealthStat{
+    
+}
+
+message Node {
+    int32 id = 2;
+    string ip = 3;
+    int32 port = 4;
+    Repository repository = 5;
+    NodeHealth health = 7;
+    NodeStatus status = 8;
+}

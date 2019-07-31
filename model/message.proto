@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package model;
+
+enum MessageOperator {
+    Update = 0;
+    Delete = 1;
+}
+
+enum SystemMessageType {
+    NodeInfo = 0;
+    NodeInfoReply = 1;
+    DataMigrate = 1001;
+    DataMigrateReply = 1002;
+    DataPush = 2001;
+    DataPushReply = 2002;
+    DataPull = 2003;
+    DataPullReply = 2004;
+
+}
+message SystemMessage {
+    SystemMessageType type = 1;
+    int32 sender = 2;
+    bytes content = 3;
+}
+
+message EventMessage {
+
+}
+
+message TopicMessage {
+
+}
+
+message DataMessage {
+    MessageOperator operator = 1;
+    string namespace = 2;
+    string table = 3;
+    string id = 4;
+    int32 version = 5;
+    bytes content = 6;
+}

@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package model;
+
+enum PacketMode {
+    TCP = 0;
+    UDP = 1;
+    HTTP = 2;
+    Multicast = 3;
+    Broadcast = 4;
+}
+
+enum PacketType {
+    System = 0;
+    Event = 1;
+    Topic = 2;
+    Data = 3;
+}
+
+message Packet {
+    int32 version = 1;
+    string id = 2;
+    PacketMode mode = 3;
+    PacketType type = 4;
+    int32 from = 5;
+    int32 to = 6;
+    repeated int32 receivers = 7;
+    bytes content = 8;
+}

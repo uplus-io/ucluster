@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package model;
+
+message DataMeta {
+    int32 version = 1;
+    bytes id = 2;
+    string namespace = 3;
+    string table = 4;
+    bytes key = 5;
+    int32 ring = 6;
+}
+
+message DataContent {
+    bool deleted = 1;
+    bytes content = 2;
+}
+
+message DataBody {
+    bytes id = 1;
+    int32 ring = 2;
+    string namespace = 3;
+    string table = 4;
+    string name = 5;
+    bytes key = 6;
+    int32 partitionId = 7;
+    int32 partitionIndex = 8;
+    int32 version = 9;
+    bytes content = 10;
+}
+
+message PushRequest {
+    repeated DataBody data = 1;
+}
+
+message PushResponse {
+    bool success = 1;
+    repeated DataBody data = 2;
+}
+
+message PullRequest {
+    repeated DataBody data = 1;
+}
+
+message PullResponse {
+    repeated DataBody data = 1;
+}
+
+message PushPullRequest {
+
+}
+
+message PushPullResponse {
+
+}
+
+message DataMigrateRequest {
+    int32 startRing = 1;
+    int32 endRing = 2;
+}
+
+message DataMigrateResponse {
+    bool completed = 1;
+}
