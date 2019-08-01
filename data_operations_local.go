@@ -10,22 +10,20 @@ import (
 const pageSize = 100
 
 type LocalDataOperations struct {
-	dataComm clusterDataCommunication
+	comm     clusterCommunication
 	delegate ClusterDataDelegate
-	from     int32
-	to       int32
 
 	queue []*model.DataBody
 	sync.Mutex
 }
 
-func NewLocalDataOperations(dataComm clusterDataCommunication, delegate ClusterDataDelegate, from, to int32) *LocalDataOperations {
-	return &LocalDataOperations{dataComm: dataComm, delegate: delegate, from: from, to: to, queue: make([]*model.DataBody, 0)}
+func newLocalDataOperations(comm clusterCommunication, delegate ClusterDataDelegate) *LocalDataOperations {
+	return &LocalDataOperations{comm: comm, delegate: delegate, queue: make([]*model.DataBody, 0)}
 }
 
 //1 3 5 7 9 11
 //2
-func (p *LocalDataOperations) Migrate(startRing int32, endRing int32) {
+func (p *LocalDataOperations) Migrate(from, to int32, startRing int32, endRing int32) error {
 	delegate := p.delegate
 	delegate.ForEach(func(data *model.DataBody) bool {
 		p.Lock()
@@ -37,7 +35,7 @@ func (p *LocalDataOperations) Migrate(startRing int32, endRing int32) {
 				if err != nil {
 					log.Errorf("read local data error:[%v]", err)
 				} else if exists {
-					p.put(data, err)
+					p.put(from, to, data, err)
 				}
 			}
 		} else {
@@ -46,33 +44,33 @@ func (p *LocalDataOperations) Migrate(startRing int32, endRing int32) {
 				if err != nil {
 					log.Errorf("read local data error:[%v]", err)
 				} else if exists {
-					p.put(data, err)
+					p.put(from, to, data, err)
 				}
 			}
 		}
 		return true
 	})
 	if len(p.queue) > 0 {
-		p.pushData()
+		p.pushData(from,to)
 	}
 	response := &model.DataMigrateResponse{Completed: true}
-	p.dataComm.MigrateResponse(p.from, p.to, response)
+	return p.comm.MigrateResponse(to, from, response)
 }
 
-func (p *LocalDataOperations) put(data *model.DataBody, err error) {
+func (p *LocalDataOperations) put(from, to int32, data *model.DataBody, err error) {
 	p.queue = append(p.queue, data)
 
 	if len(p.queue) >= pageSize {
-		p.pushData()
+		p.pushData(from, to)
 	}
 }
 
-func (p *LocalDataOperations) pushData() {
+func (p *LocalDataOperations) pushData(from, to int32) {
 	p.Lock()
 	defer p.Unlock()
 	pushRequest := &model.PushRequest{Data: p.queue}
 
-	response := p.dataComm.Push(p.from, p.to, pushRequest)
+	response := p.comm.Push(to, from, pushRequest)
 	if response != nil && response.Success {
 		p.queue = make([]*model.DataBody, 0)
 	}
@@ -80,7 +78,7 @@ func (p *LocalDataOperations) pushData() {
 
 // A节点将数据(key,value,version)及对应的版本号推送给B节点
 // B节点更新A发过来的数据中比自己新的数据
-func (p *LocalDataOperations) Push(dataArray []*model.DataBody) {
+func (p *LocalDataOperations) Push(from, to int32, dataArray []*model.DataBody) {
 	result := make([]*model.DataBody, len(dataArray))
 	for i, data := range dataArray {
 		exist := &model.DataBody{Namespace: data.Namespace, Table: data.Table, Name: data.Name, Key: data.Key}
@@ -101,12 +99,12 @@ func (p *LocalDataOperations) Push(dataArray []*model.DataBody) {
 		result[i] = &model.DataBody{Namespace: data.Namespace, Table: data.Table, Id: data.Id, Version: data.Version}
 	}
 	response := &model.PushResponse{Success: true, Data: result}
-	p.dataComm.PushReply(p.from, p.to, response)
+	p.comm.PushReply(to, from, response)
 }
 
 // A不发送数据的value，仅发送数据的摘要key和version给B。
 // B根据版本比较数据，将本地比A新的数据(key,value,version)推送给A
 // A更新自己的本地数据
-func (p *LocalDataOperations) Pull([]*model.DataBody) {
-
+func (p *LocalDataOperations) Pull(from, to int32, dataArray []*model.DataBody) error {
+	return nil
 }

@@ -2,22 +2,33 @@ package ucluster
 
 import (
 	"github.com/uplus-io/ucluster/model"
+	log "github.com/uplus-io/ugo/logger"
 	"github.com/uplus-io/ugo/proto"
 )
 
-type ClusterPacketHandler struct {
+type ClusterPacketDispatcher struct {
 	cluster *Cluster
 
 	handlerMap map[model.PacketType]PacketHandler
 }
 
-func NewClusterPacketHandler(cluster *Cluster) *ClusterPacketHandler {
-	packetHandler := &ClusterPacketHandler{cluster: cluster, handlerMap: make(map[model.PacketType]PacketHandler)}
+func NewClusterPacketDispatcher(cluster *Cluster) *ClusterPacketDispatcher {
+	packetHandler := &ClusterPacketDispatcher{cluster: cluster, handlerMap: make(map[model.PacketType]PacketHandler)}
 	packetHandler.registerDefaultHandler()
 	return packetHandler
 }
 
-func (p *ClusterPacketHandler) Register(packetType model.PacketType, handler PacketHandler) error {
+func (p *ClusterPacketDispatcher) Dispatch(packet model.Packet) error {
+	handler, exist := p.handlerMap[packet.Type]
+	if exist {
+		return handler(packet)
+	} else {
+		log.Warnf("not match message handler[%v],drop packet[%v]", packet.Type, packet)
+		return nil
+	}
+}
+
+func (p *ClusterPacketDispatcher) Register(packetType model.PacketType, handler PacketHandler) error {
 	_, ok := p.handlerMap[packetType]
 	if ok {
 		return ErrMessageHandlerExist
@@ -26,90 +37,95 @@ func (p *ClusterPacketHandler) Register(packetType model.PacketType, handler Pac
 	return nil
 }
 
-func (p *ClusterPacketHandler) registerDefaultHandler() {
+func (p *ClusterPacketDispatcher) registerDefaultHandler() {
 	p.Register(model.PacketType_System, p.systemHandle)
 	p.Register(model.PacketType_Event, p.eventHandle)
 	p.Register(model.PacketType_Topic, p.topicHandle)
 	p.Register(model.PacketType_Data, p.dataHandle)
 }
 
-func (p *ClusterPacketHandler) systemHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemHandle(packet model.Packet) error {
 	message := &model.SystemMessage{}
 	proto.Unmarshal(packet.Content, message)
 	switch message.Type {
-	case model.SystemMessageType_NodeInfo:
+	case model.SystemMessageType_NODE_STORAGE_INFO:
 		return p.systemNodeInfoHandle(packet)
-	case model.SystemMessageType_NodeInfoReply:
+	case model.SystemMessageType_NODE_STORAGE_INFO_REPLY:
 		return p.systemNodeInfoReplyHandle(packet)
-	case model.SystemMessageType_DataMigrate:
+	case model.SystemMessageType_DATA_MIGRATE:
 		return p.systemDataMigrateHandle(packet)
-	case model.SystemMessageType_DataMigrateReply:
+	case model.SystemMessageType_DATA_MIGRATE_REPLY:
 		return p.systemDataMigrateReplyHandle(packet)
-	case model.SystemMessageType_DataPush:
+	case model.SystemMessageType_DATA_PUSH:
 		return p.systemDataPushHandle(packet)
-	case model.SystemMessageType_DataPushReply:
+	case model.SystemMessageType_DATA_PUSH_REPLY:
 		return p.systemDataPushReplyHandle(packet)
-	case model.SystemMessageType_DataPull:
+	case model.SystemMessageType_DATA_PULL:
 		return p.systemDataPullHandle(packet)
-	case model.SystemMessageType_DataPullReply:
+	case model.SystemMessageType_DATA_PULL_REPLY:
 		return p.systemDataPullReplyHandle(packet)
 	default:
-		return p.cluster.packetDelegate.System(p.cluster.pipeline, *message)
+		return p.cluster.messageDelegate.System(p.cluster.pipeline, *message)
 	}
 }
-func (p *ClusterPacketHandler) systemNodeInfoHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemNodeInfoHandle(packet model.Packet) error {
 	storageInfo := p.cluster.delegate.LocalNodeStorageInfo()
-	storageInfoData, _ := proto.Marshal(storageInfo)
-	message := &model.SystemMessage{Type: model.SystemMessageType_NodeInfoReply, Sender: packet.To, Content: storageInfoData}
-	messageData, _ := proto.Marshal(message)
-	reply := model.NewUDPPacket(model.PacketType_System, packet.To, packet.From, messageData)
-	p.cluster.pipeline.ASyncSend(reply)
-	return nil
+	return p.cluster.communication.NodeStorageInfoReply(packet.To, packet.From, storageInfo)
 }
-func (p *ClusterPacketHandler) systemNodeInfoReplyHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemNodeInfoReplyHandle(packet model.Packet) error {
 	message := &model.SystemMessage{}
 	storageInfo := &model.NodeStorageInfo{}
 	model.UnpackSystemMessage(&packet, message, storageInfo)
 	p.cluster.JoinNode(packet.From, int(storageInfo.PartitionSize), int(storageInfo.ReplicaSize))
 	return nil
 }
-func (p *ClusterPacketHandler) systemDataMigrateHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemDataMigrateHandle(packet model.Packet) error {
+	message := &model.SystemMessage{}
+	request := &model.DataMigrateRequest{}
+	model.UnpackSystemMessage(&packet, message, request)
+	p.cluster.localDataOperations.Migrate(packet.From, packet.To, request.StartRing, request.EndRing)
 	return nil
 }
-func (p *ClusterPacketHandler) systemDataMigrateReplyHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemDataMigrateReplyHandle(packet model.Packet) error {
+	message := &model.SystemMessage{}
+	migrateResponse := &model.DataMigrateResponse{}
+	model.UnpackSystemMessage(&packet, message, migrateResponse)
+	log.Debugf("migrateReply[%s]", migrateResponse.String())
 	return nil
 }
-func (p *ClusterPacketHandler) systemDataPushHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemDataPushHandle(packet model.Packet) error {
+	message := &model.SystemMessage{}
+	pushRequest := &model.PushRequest{}
+	model.UnpackSystemMessage(&packet, message, pushRequest)
+	p.cluster.localDataOperations.Push(packet.From, packet.To, pushRequest.Data)
 	return nil
 }
-func (p *ClusterPacketHandler) systemDataPushReplyHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemDataPushReplyHandle(packet model.Packet) error {
+	message := &model.SystemMessage{}
+	pushResponse := &model.PushResponse{}
+	model.UnpackSystemMessage(&packet, message, pushResponse)
+	log.Debugf("pushReply[%s]", pushResponse.String())
 	return nil
 }
-func (p *ClusterPacketHandler) systemDataPullHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemDataPullHandle(packet model.Packet) error {
 	return nil
 }
-func (p *ClusterPacketHandler) systemDataPullReplyHandle(packet model.Packet) error {
+func (p *ClusterPacketDispatcher) systemDataPullReplyHandle(packet model.Packet) error {
 	return nil
 }
 
-func (p *ClusterPacketHandler) eventHandle(packet model.Packet) error {
-	return nil
+func (p *ClusterPacketDispatcher) eventHandle(packet model.Packet) error {
+	message := model.EventMessage{}
+	proto.Unmarshal(packet.Content, &message)
+	return p.cluster.messageDelegate.Event(p.cluster.pipeline, message)
 }
-
-func (p *ClusterPacketHandler) topicHandle(packet model.Packet) error {
-	return nil
+func (p *ClusterPacketDispatcher) topicHandle(packet model.Packet) error {
+	message := model.TopicMessage{}
+	proto.Unmarshal(packet.Content, &message)
+	return p.cluster.messageDelegate.Topic(p.cluster.pipeline, message)
 }
-
-func (p *ClusterPacketHandler) dataHandle(packet model.Packet) error {
-	return nil
-}
-
-func (p *ClusterPacketHandler) packetHandle(packet model.Packet) error {
-	handler, exist := p.handlerMap[packet.Type]
-	if exist {
-		return handler(packet)
-	} else {
-		//todo:not found match handler
-		return nil
-	}
+func (p *ClusterPacketDispatcher) dataHandle(packet model.Packet) error {
+	message := model.DataMessage{}
+	proto.Unmarshal(packet.Content, &message)
+	return p.cluster.messageDelegate.Data(p.cluster.pipeline, message)
 }

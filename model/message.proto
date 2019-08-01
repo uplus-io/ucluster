@@ -3,19 +3,19 @@ syntax = "proto3";
 package model;
 
 enum MessageOperator {
-    Update = 0;
-    Delete = 1;
+    UPDATE = 0;
+    DELETE = 1;
 }
 
 enum SystemMessageType {
-    NodeInfo = 0;
-    NodeInfoReply = 1;
-    DataMigrate = 1001;
-    DataMigrateReply = 1002;
-    DataPush = 2001;
-    DataPushReply = 2002;
-    DataPull = 2003;
-    DataPullReply = 2004;
+    NODE_STORAGE_INFO = 0;
+    NODE_STORAGE_INFO_REPLY = 1;
+    DATA_MIGRATE = 1001;
+    DATA_MIGRATE_REPLY = 1002;
+    DATA_PUSH = 2001;
+    DATA_PUSH_REPLY = 2002;
+    DATA_PULL = 2003;
+    DATA_PULL_REPLY = 2004;
 
 }
 message SystemMessage {

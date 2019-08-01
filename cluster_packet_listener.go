@@ -13,10 +13,10 @@ type PacketListener interface {
 }
 
 type ClusterPacketListener struct {
-	Pipeline ClusterPipeline
+	Pipeline PacketPipeline
 }
 
-func NewClusterPacketListener(pipeline ClusterPipeline) *ClusterPacketListener {
+func NewClusterPacketListener(pipeline PacketPipeline) *ClusterPacketListener {
 	return &ClusterPacketListener{Pipeline: pipeline}
 }
 

@@ -15,19 +15,21 @@ type Cluster struct {
 	id     int32
 	config UClusterConfig
 
-	warehouse         *Warehouse
-	communication     clusterCommunication
-	dataCommunication clusterDataCommunication
-	packetHandler     PacketHandler
+	warehouse            *Warehouse
+	communication        clusterCommunication
+	localDataOperations  DataOperations
+	remoteDataOperations DataOperations
 
-	pipeline       Pipeline               //用户数据管道
-	delegate       ClusterDelegate        //用户集群实现委托
-	packetDelegate ClusterMessageDelegate //用户集群消息实现委托
+	delegate        ClusterDelegate        //用户集群实现委托
+	dataDelegate    ClusterDataDelegate    //用户数据实现委托
+	messageDelegate ClusterMessageDelegate //用户集群消息实现委托
 
 	exit chan bool
 
-	transport       Transport
-	clusterPipeline ClusterPipeline
+	packetDispatcher PacketDispatcher //数据包处理器
+	transport        Transport        //协议实现
+	pipeline         Pipeline         //暴露的数据通信管道
+	packetPipeline   PacketPipeline   //数据包处理器管道
 
 	clusterHealth model.ClusterHealth
 	nodeHealth    model.NodeHealth
@@ -41,24 +43,34 @@ type Cluster struct {
 func NewCluster(config UClusterConfig) *Cluster {
 	//init log
 	log.DebugLoggerEnable(true)
-	return &Cluster{
-		config:          config,
-		clusterPipeline: NewClusterPacketPipeline(),
-		exit:            make(chan bool),
-		clusterHealth:   model.ClusterHealth_CH_Unknown,
-		nodeHealth:      model.NodeHealth_Suspect,
-		nodeStatus:      model.NodeStatus_Unknown,
+	cluster := &Cluster{
+		config:         config,
+		packetPipeline: NewClusterPacketPipeline(),
+		exit:           make(chan bool),
+		clusterHealth:  model.ClusterHealth_CH_Unknown,
+		nodeHealth:     model.NodeHealth_Suspect,
+		nodeStatus:     model.NodeStatus_Unknown,
 	}
+	cluster.packetDispatcher = NewClusterPacketDispatcher(cluster)
+	cluster.pipeline = NewClusterPipeline(cluster.packetPipeline)
+	cluster.communication = newClusterCommunicationImplementor(cluster.pipeline)
+	cluster.warehouse = NewWarehouse(cluster)
+	cluster.localDataOperations = newLocalDataOperations(cluster.communication, cluster.dataDelegate)
+
+	//user impl
+	cluster.delegate = config.Delegate
+	cluster.dataDelegate = config.DataDelegate
+	cluster.messageDelegate = config.MessageDelegate
+	return cluster
 }
 
 func (p *Cluster) Listen() {
-	p.communication = newClusterCommunicationImplementor(p)
-	p.dataCommunication = newClusterDataCommunicationImplementor(p)
 	go p.launchGossip()
 	go p.packetInLoop()
 	go p.packetOutLoop()
 	p.nodeHealth = model.NodeHealth_Alive
-	<-p.exit
+	exitSingal := <-p.exit
+	log.Infof("cluster receive quit signal[%v],ready exit", exitSingal)
 }
 
 func (p *Cluster) getClusterHealth() model.ClusterHealth {
@@ -76,7 +88,6 @@ func (p *Cluster) getLocalNodeStatus() model.NodeStatus {
 func (p *Cluster) launchGossip() {
 	p.Lock()
 	defer p.Unlock()
-	p.warehouse = NewWarehouse(p.communication)
 	transportConfig := &TransportConfig{
 		Seeds:          p.config.Seeds,
 		Secret:         p.config.Secret,
@@ -84,7 +95,7 @@ func (p *Cluster) launchGossip() {
 		BindPort:       p.config.BindPort,
 		AdvertisePort:  p.config.AdvertisePort,
 		EventListener:  NewClusterEventListener(p.warehouse),
-		PacketListener: NewClusterPacketListener(p.clusterPipeline)}
+		PacketListener: NewClusterPacketListener(p.packetPipeline)}
 
 	p.transport = NewTransportGossip(transportConfig)
 
@@ -96,7 +107,11 @@ func (p *Cluster) launchGossip() {
 	log.Debugf("cluster node[%d] started %v", p.id, p.launched)
 
 	localInfo := p.delegate.LocalNodeStorageInfo()
-	p.JoinNode(p.id, int(localInfo.PartitionSize), int(localInfo.ReplicaSize))
+	if localInfo == nil {
+		log.Warnf("local node storage info is nil,ignore cluster join")
+	} else {
+		p.JoinNode(p.id, int(localInfo.PartitionSize), int(localInfo.ReplicaSize))
+	}
 	p.checkWarehouse()
 }
 
@@ -106,15 +121,18 @@ func (p *Cluster) checkWarehouse() {
 		transportInfo := p.transport.Me()
 		repository := model.ParseRepository(transportInfo.Addr.String())
 		storageInfo := p.delegate.LocalNodeStorageInfo()
-		parts := storageInfo.Partitions
-		for _, part := range parts {
-			center := p.warehouse.GetCenter(repository.DataCenter)
-			next := center.NextOfRing(uint32(part.Id))
-			request := &model.DataMigrateRequest{StartRing: part.Id, EndRing: int32(next)}
-
-			for _, node := range center.Nodes() {
-				if node.Id != transportInfo.Id {
-					p.dataCommunication.MigrateRequest(node.Id, request)
+		if storageInfo == nil {
+			log.Warnf("local node storage info is nil,ignore cluster data migrate")
+		} else {
+			parts := storageInfo.Partitions
+			for _, part := range parts {
+				center := p.warehouse.GetCenter(repository.DataCenter)
+				next := center.NextOfRing(uint32(part.Id))
+				request := &model.DataMigrateRequest{StartRing: part.Id, EndRing: int32(next)}
+				for _, node := range center.Nodes() {
+					if node.Id != transportInfo.Id {
+						p.communication.MigrateRequest(p.id, node.Id, request)
+					}
 				}
 			}
 		}
@@ -126,7 +144,7 @@ func (p *Cluster) contactCluster() {
 	for i := 0; i < applicants.Len(); i++ {
 		node := applicants.Index(i).(*Node)
 		if p.id != node.Id {
-			err := p.communication.SendNodeInfoTo(node.Id)
+			err := p.communication.NodeStorageInfoReply(p.id, node.Id, p.delegate.LocalNodeStorageInfo())
 			if err != nil {
 				log.Errorf("contact cluster[%d->%d] error", p.id, node.Id)
 			}
@@ -143,18 +161,9 @@ func (p *Cluster) JoinNode(nodeId int32, partitionSize int, replicaSize int) {
 
 }
 
-func (p *Cluster) SendAsyncPacket(packet *model.Packet) {
-	p.clusterPipeline.InWrite(packet)
-}
-
-func (p *Cluster) SendSyncPacket(packet *model.Packet) *model.Packet {
-	channel := p.clusterPipeline.InSyncWrite(packet)
-	return <-channel.Read()
-}
-
 func (p *Cluster) packetInLoop() {
 	for {
-		packet := <-p.clusterPipeline.InRead()
+		packet := <-p.packetPipeline.InRead()
 		log.Debugf("send packet[%s]", packet.String())
 		bytes, err := proto.Marshal(packet)
 		if err != nil {
@@ -182,30 +191,12 @@ func (p *Cluster) packetInLoop() {
 
 func (p *Cluster) packetOutLoop() {
 	for {
-		packet := <-p.clusterPipeline.OutRead()
+		packet := <-p.packetPipeline.OutRead()
 		log.Debugf("received packet[%s]", packet.String())
 		go func() {
-			var err error
-			switch packet.Type {
-			case model.PacketType_System:
-				message := model.SystemMessage{}
-				proto.Unmarshal(packet.Content, &message)
-				err = p.packetDelegate.System(message)
-			case model.PacketType_Event:
-				message := model.EventMessage{}
-				proto.Unmarshal(packet.Content, &message)
-				err = p.packetDelegate.Event(message)
-			case model.PacketType_Topic:
-				message := model.TopicMessage{}
-				proto.Unmarshal(packet.Content, &message)
-				err = p.packetDelegate.Topic(message)
-			case model.PacketType_Data:
-				message := model.DataMessage{}
-				proto.Unmarshal(packet.Content, &message)
-				err = p.packetDelegate.Data(message)
-			}
+			err := p.packetDispatcher.Dispatch(*packet)
 			if err != nil {
-				p.clusterPipeline.OutWrite(packet)
+				p.packetPipeline.OutWrite(packet)
 			}
 		}()
 	}

@@ -31,8 +31,11 @@ func NewUDPPacket(typ PacketType, from, to int32, content []byte) *Packet {
 }
 
 func PackSystemMessage(mode PacketMode, from, to int32, messageType SystemMessageType, message proto.ProtoMessage) *Packet {
-	data, _ := proto.Marshal(message)
-	systemMessage := &SystemMessage{Type: messageType, Sender: from, Content: data}
+	var messageData []byte
+	if message != nil {
+		messageData, _ = proto.Marshal(message)
+	}
+	systemMessage := &SystemMessage{Type: messageType, Sender: from, Content: messageData}
 	systemMessageData, _ := proto.Marshal(systemMessage)
 	if mode == PacketMode_TCP {
 		return NewTCPPacket(PacketType_System, from, to, systemMessageData)

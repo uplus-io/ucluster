@@ -28,9 +28,10 @@ const (
 )
 
 type Warehouse struct {
-	Centers       *core.Array
-	applicants    *core.Array
-	communication clusterCommunication
+	cluster    *Cluster
+	Centers    *core.Array
+	applicants *core.Array
+	delegate   ClusterDelegate
 
 	available             bool  //可用
 	lastCommunicationTime int64 //最后节点状态变化通讯时间
@@ -42,8 +43,13 @@ type Warehouse struct {
 	sync.RWMutex
 }
 
-func NewWarehouse(communication clusterCommunication) *Warehouse {
-	return &Warehouse{Centers: core.NewArray(), applicants: core.NewArray(), communication: communication, status: WarehouseStatus_Launching}
+func NewWarehouse(cluster *Cluster) *Warehouse {
+	return &Warehouse{
+		cluster:    cluster,
+		Centers:    core.NewArray(),
+		applicants: core.NewArray(),
+		status:     WarehouseStatus_Launching,
+	}
 }
 
 func GenerateRepositoryId(group string) int32 {
@@ -80,7 +86,8 @@ func (p *Warehouse) JoinNode(ip string, port int) *Node {
 	p.status = WarehouseStatus_Node_Changed
 	node := NewNode(ip, port, 0)
 	if p.clusterReadying {
-		p.communication.SendNodeInfoTo(node.Id)
+		storageInfo := p.delegate.LocalNodeStorageInfo()
+		p.cluster.communication.NodeStorageInfoReply(p.cluster.id, node.Id, storageInfo)
 	} else {
 		p.applicants.Add(node)
 		log.Infof("cluster applicant[%d:%s:%d] join", node.Id, node.Ip, node.Port)

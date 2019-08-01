@@ -13,7 +13,7 @@ type Pipeline interface {
 	ASyncSend(packet *model.Packet)
 }
 
-type ClusterPipeline interface {
+type PacketPipeline interface {
 	InSyncWrite(packet *model.Packet) *SyncChannel
 	InWrite(packet *model.Packet)
 	InRead() <-chan *model.Packet

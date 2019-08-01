@@ -6,9 +6,9 @@ package ucluster
 
 import "github.com/uplus-io/ucluster/model"
 
-type MessageDispatcher interface {
+type PacketDispatcher interface {
 	Dispatch(packet model.Packet) error
-	register(packetType model.PacketType, handler PacketHandler) error
+	Register(packetType model.PacketType, handler PacketHandler) error
 }
 
 type PacketHandler func(packet model.Packet) error
