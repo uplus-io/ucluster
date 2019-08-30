@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package proto;
+
+//import "node.proto";
+import "cluster.proto";
+
+message Message {
+    int32 version = 1;
+    ClusterCommand command = 2;
+    int32 from = 3;
+    int32 to = 4;
+    int32 length = 5;
+    bytes content = 6;
+}

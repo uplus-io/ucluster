@@ -157,7 +157,7 @@ func (p *TransportGossip) NodeMeta(limit int) []byte {
 // slice may be modified after the call returns, so it should be copied if needed
 func (p *TransportGossip) NotifyMsg(dat []byte) {
 	packet := &model.Packet{}
-	proto.Unmarshal(dat, packet)
+	goproto.Unmarshal(dat, packet)
 	OnReceive(packet)
 }
 

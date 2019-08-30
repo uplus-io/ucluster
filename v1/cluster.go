@@ -165,7 +165,7 @@ func (p *Cluster) packetInLoop() {
 	for {
 		packet := <-InRead()
 		log.Debugf("send packet[%s]", packet.String())
-		bytes, err := proto.Marshal(packet)
+		bytes, err := goproto.Marshal(packet)
 		if err != nil {
 			log.Errorf("waiting to send packet marshal error[%s]", packet.String())
 			continue

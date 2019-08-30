@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package proto;
+
+enum NodeRole {
+    NORMAL = 0;
+    HOLDER = 1;
+}
+
+message Node {
+    string group = 1;
+    int32 id = 2;
+    string name = 3;
+    NodeRole role = 4;
+    string ip = 5;
+    int32 socketPort = 6;
+    int32 httpPort = 7;
+}

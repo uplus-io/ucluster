@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/uplus-io/ugo/goproto"
 	"github.com/uplus-io/ugo/proto"
 	"github.com/uplus-io/ugo/utils"
 )
@@ -30,13 +31,13 @@ func NewUDPPacket(typ PacketType, from, to int32, content []byte) *Packet {
 	return NewPacket(PacketMode_UDP, typ, from, []int32{to}, content)
 }
 
-func PackSystemMessage(mode PacketMode, from, to int32, messageType SystemMessageType, message proto.ProtoMessage) *Packet {
+func PackSystemMessage(mode PacketMode, from, to int32, messageType SystemMessageType, message goproto.ProtoMessage) *Packet {
 	var messageData []byte
 	if message != nil {
-		messageData, _ = proto.Marshal(message)
+		messageData, _ = goproto.Marshal(message)
 	}
 	systemMessage := &SystemMessage{Type: messageType, Sender: from, Content: messageData}
-	systemMessageData, _ := proto.Marshal(systemMessage)
+	systemMessageData, _ := goproto.Marshal(systemMessage)
 	if mode == PacketMode_TCP {
 		return NewTCPPacket(PacketType_System, from, to, systemMessageData)
 	} else {
@@ -44,20 +45,20 @@ func PackSystemMessage(mode PacketMode, from, to int32, messageType SystemMessag
 	}
 }
 
-func PackTCPSystemMessage(from, to int32, messageType SystemMessageType, message proto.ProtoMessage) *Packet {
+func PackTCPSystemMessage(from, to int32, messageType SystemMessageType, message goproto.ProtoMessage) *Packet {
 	return PackSystemMessage(PacketMode_TCP, from, to, messageType, message)
 }
 
-func PackUDPSystemMessage(from, to int32, messageType SystemMessageType, message proto.ProtoMessage) *Packet {
+func PackUDPSystemMessage(from, to int32, messageType SystemMessageType, message goproto.ProtoMessage) *Packet {
 	return PackSystemMessage(PacketMode_TCP, from, to, messageType, message)
 }
 
-func UnpackSystemMessage(packet *Packet, systemMessage *SystemMessage, message proto.ProtoMessage) (err error) {
-	err = proto.Unmarshal(packet.Content, systemMessage)
+func UnpackSystemMessage(packet *Packet, systemMessage *SystemMessage, message goproto.ProtoMessage) (err error) {
+	err = goproto.Unmarshal(packet.Content, systemMessage)
 	if err != nil {
 		return
 	}
-	err = proto.Unmarshal(Content, message)
+	err = goproto.Unmarshal(Content, message)
 	if err != nil {
 		return
 	}

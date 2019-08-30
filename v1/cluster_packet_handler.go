@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/uplus-io/ucluster/v1/model"
+	"github.com/uplus-io/ugo/goproto"
 	log "github.com/uplus-io/ugo/logger"
 	"github.com/uplus-io/ugo/proto"
 )
@@ -46,7 +47,7 @@ func (p *ClusterPacketDispatcher) registerDefaultHandler() {
 
 func (p *ClusterPacketDispatcher) systemHandle(packet model.Packet) error {
 	message := &model.SystemMessage{}
-	proto.Unmarshal(packet.Content, message)
+	goproto.Unmarshal(packet.Content, message)
 	switch message.Type {
 	case model.SystemMessageType_NODE_STORAGE_INFO:
 		return p.systemNodeInfoHandle(packet)
@@ -116,16 +117,16 @@ func (p *ClusterPacketDispatcher) systemDataPullReplyHandle(packet model.Packet)
 
 func (p *ClusterPacketDispatcher) eventHandle(packet model.Packet) error {
 	message := model.EventMessage{}
-	proto.Unmarshal(packet.Content, &message)
+	goproto.Unmarshal(packet.Content, &message)
 	return Event(pipeline, message)
 }
 func (p *ClusterPacketDispatcher) topicHandle(packet model.Packet) error {
 	message := model.TopicMessage{}
-	proto.Unmarshal(packet.Content, &message)
+	goproto.Unmarshal(packet.Content, &message)
 	return Topic(pipeline, message)
 }
 func (p *ClusterPacketDispatcher) dataHandle(packet model.Packet) error {
 	message := model.DataMessage{}
-	proto.Unmarshal(packet.Content, &message)
+	goproto.Unmarshal(packet.Content, &message)
 	return Data(pipeline, message)
 }

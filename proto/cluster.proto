@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package proto;
+
+//import "node.proto";
+
+enum ClusterCommand {
+    Connect = 0;
+    Disconnect = 1;
+    Heartbeat = 2;
+    Join = 3;
+    Leave = 4;
+    Busy = 5;
+    SystemMessage = 6;
+    UserMessage = 7;
+}
