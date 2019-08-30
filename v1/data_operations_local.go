@@ -1,7 +1,7 @@
-package ucluster
+package v1
 
 import (
-	"github.com/uplus-io/ucluster/model"
+	"github.com/uplus-io/ucluster/v1/model"
 	"github.com/uplus-io/ugo/hash"
 	log "github.com/uplus-io/ugo/logger"
 	"sync"
@@ -25,13 +25,13 @@ func newLocalDataOperations(comm clusterCommunication, delegate ClusterDataDeleg
 //2
 func (p *LocalDataOperations) Migrate(from, to int32, startRing int32, endRing int32) error {
 	delegate := p.delegate
-	delegate.ForEach(func(data *model.DataBody) bool {
+	ForEach(func(data *model.DataBody) bool {
 		p.Lock()
 		defer p.Unlock()
 		ring := hash.Int32(data.Id)
 		if startRing < endRing {
 			if ring >= startRing && ring < endRing {
-				exists, err := delegate.Get(data)
+				exists, err := Get(data)
 				if err != nil {
 					log.Errorf("read local data error:[%v]", err)
 				} else if exists {
@@ -40,7 +40,7 @@ func (p *LocalDataOperations) Migrate(from, to int32, startRing int32, endRing i
 			}
 		} else {
 			if ring >= startRing {
-				exists, err := delegate.Get(data)
+				exists, err := Get(data)
 				if err != nil {
 					log.Errorf("read local data error:[%v]", err)
 				} else if exists {
@@ -54,7 +54,7 @@ func (p *LocalDataOperations) Migrate(from, to int32, startRing int32, endRing i
 		p.pushData(from,to)
 	}
 	response := &model.DataMigrateResponse{Completed: true}
-	return p.comm.MigrateResponse(to, from, response)
+	return MigrateResponse(to, from, response)
 }
 
 func (p *LocalDataOperations) put(from, to int32, data *model.DataBody, err error) {
@@ -70,7 +70,7 @@ func (p *LocalDataOperations) pushData(from, to int32) {
 	defer p.Unlock()
 	pushRequest := &model.PushRequest{Data: p.queue}
 
-	response := p.comm.Push(to, from, pushRequest)
+	response := Push(to, from, pushRequest)
 	if response != nil && response.Success {
 		p.queue = make([]*model.DataBody, 0)
 	}
@@ -82,12 +82,12 @@ func (p *LocalDataOperations) Push(from, to int32, dataArray []*model.DataBody) 
 	result := make([]*model.DataBody, len(dataArray))
 	for i, data := range dataArray {
 		exist := &model.DataBody{Namespace: data.Namespace, Table: data.Table, Name: data.Name, Key: data.Key}
-		exists, err := p.delegate.Get(exist)
+		exists, err := Get(exist)
 		if err != nil {
 			log.Errorf("read local data error:[%v]", err)
 		} else {
 			if !exists || exist.Version < data.Version {
-				err := p.delegate.Set(data)
+				err := Set(data)
 				if err != nil {
 					log.Errorf("write local data error:[%v]", err)
 				}
@@ -99,7 +99,7 @@ func (p *LocalDataOperations) Push(from, to int32, dataArray []*model.DataBody) 
 		result[i] = &model.DataBody{Namespace: data.Namespace, Table: data.Table, Id: data.Id, Version: data.Version}
 	}
 	response := &model.PushResponse{Success: true, Data: result}
-	p.comm.PushReply(to, from, response)
+	PushReply(to, from, response)
 }
 
 // A不发送数据的value，仅发送数据的摘要key和version给B。

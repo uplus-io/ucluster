@@ -2,7 +2,7 @@
  * Copyright (c) 2019 uplus.io
  */
 
-package ucluster
+package v1
 
 import (
 	log "github.com/uplus-io/ugo/logger"
@@ -21,11 +21,11 @@ func NewClusterEventListener(warehouse *Warehouse) *ClusterEventListener {
 }
 
 func (p *ClusterEventListener) OnTopologyChanged(event *NodeEvent) {
-	switch event.Type {
+	switch Type {
 	case NodeEventType_Join:
-		p.warehouse.JoinNode(event.Node.Ip, int(event.Node.Port))
+		JoinNode(event.Node.Ip, int(event.Node.Port))
 	case NodeEventType_Leave:
-		p.warehouse.LeaveNode(event.Node.Ip, int(event.Node.Port))
+		LeaveNode(event.Node.Ip, int(event.Node.Port))
 	case NodeEventType_Update:
 		log.Debugf("node[%s] event update", event.Node.String())
 	}

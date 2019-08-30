@@ -2,11 +2,11 @@
  * Copyright (c) 2019 uplus.io
  */
 
-package ucluster
+package v1
 
 import (
 	"fmt"
-	"github.com/uplus-io/ucluster/model"
+	"github.com/uplus-io/ucluster/v1/model"
 	"github.com/uplus-io/ugo/core"
 	"github.com/uplus-io/ugo/hash"
 	log "github.com/uplus-io/ugo/logger"

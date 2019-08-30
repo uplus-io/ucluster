@@ -17,15 +17,15 @@ func NewNode(id int32, ip string, port int32) *Node {
 }
 
 func (p *Node) Compare(item core.ArrayItem) int32 {
-	return p.GetId() - item.GetId()
+	return GetId() - item.GetId()
 }
 
 func (v Node) Address() string {
-	return fmt.Sprintf("%s:%d", v.Ip, v.Port)
+	return fmt.Sprintf("%s:%d", Ip, Port)
 }
 
 func (v Node) Addr() net.IP {
-	bits := strings.Split(v.Ip, ".")
+	bits := strings.Split(Ip, ".")
 	b0, _ := strconv.Atoi(bits[0])
 	b1, _ := strconv.Atoi(bits[1])
 	b2, _ := strconv.Atoi(bits[2])

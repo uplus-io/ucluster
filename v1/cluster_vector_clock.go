@@ -2,7 +2,7 @@
  * Copyright (c) 2019 uplus.io
  */
 
-package ucluster
+package v1
 
 import (
 	"sort"

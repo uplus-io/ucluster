@@ -2,10 +2,10 @@
  * Copyright (c) 2019 uplus.io
  */
 
-package ucluster
+package v1
 
 import (
-	"github.com/uplus-io/ucluster/model"
+	"github.com/uplus-io/ucluster/v1/model"
 	log "github.com/uplus-io/ugo/logger"
 	"github.com/uplus-io/ugo/proto"
 	"sync"
@@ -58,9 +58,9 @@ func NewCluster(config UClusterConfig) *Cluster {
 	cluster.localDataOperations = newLocalDataOperations(cluster.communication, cluster.dataDelegate)
 
 	//user impl
-	cluster.delegate = config.Delegate
-	cluster.dataDelegate = config.DataDelegate
-	cluster.messageDelegate = config.MessageDelegate
+	cluster.delegate = Delegate
+	cluster.dataDelegate = DataDelegate
+	cluster.messageDelegate = MessageDelegate
 	return cluster
 }
 
@@ -89,11 +89,11 @@ func (p *Cluster) launchGossip() {
 	p.Lock()
 	defer p.Unlock()
 	transportConfig := &TransportConfig{
-		Seeds:          p.config.Seeds,
-		Secret:         p.config.Secret,
-		BindIp:         p.config.BindIp,
-		BindPort:       p.config.BindPort,
-		AdvertisePort:  p.config.AdvertisePort,
+		Seeds:          Seeds,
+		Secret:         Secret,
+		BindIp:         BindIp,
+		BindPort:       BindPort,
+		AdvertisePort:  AdvertisePort,
 		EventListener:  NewClusterEventListener(p.warehouse),
 		PacketListener: NewClusterPacketListener(p.packetPipeline)}
 
@@ -106,7 +106,7 @@ func (p *Cluster) launchGossip() {
 	p.launched = true
 	log.Debugf("cluster node[%d] started %v", p.id, p.launched)
 
-	localInfo := p.delegate.LocalNodeStorageInfo()
+	localInfo := LocalNodeStorageInfo()
 	if localInfo == nil {
 		log.Warnf("local node storage info is nil,ignore cluster join")
 	} else {
@@ -117,21 +117,21 @@ func (p *Cluster) launchGossip() {
 
 func (p *Cluster) checkWarehouse() {
 	p.contactCluster()
-	p.warehouse.Readying(func(status WarehouseStatus) {
+	Readying(func(status WarehouseStatus) {
 		transportInfo := p.transport.Me()
 		repository := model.ParseRepository(transportInfo.Addr.String())
-		storageInfo := p.delegate.LocalNodeStorageInfo()
+		storageInfo := LocalNodeStorageInfo()
 		if storageInfo == nil {
 			log.Warnf("local node storage info is nil,ignore cluster data migrate")
 		} else {
 			parts := storageInfo.Partitions
 			for _, part := range parts {
-				center := p.warehouse.GetCenter(repository.DataCenter)
-				next := center.NextOfRing(uint32(part.Id))
+				center := GetCenter(repository.DataCenter)
+				next := NextOfRing(uint32(part.Id))
 				request := &model.DataMigrateRequest{StartRing: part.Id, EndRing: int32(next)}
-				for _, node := range center.Nodes() {
-					if node.Id != transportInfo.Id {
-						p.communication.MigrateRequest(p.id, node.Id, request)
+				for _, node := range Nodes() {
+					if Id != transportInfo.Id {
+						MigrateRequest(p.id, Id, request)
 					}
 				}
 			}
@@ -140,13 +140,13 @@ func (p *Cluster) checkWarehouse() {
 }
 
 func (p *Cluster) contactCluster() {
-	applicants := p.warehouse.Applicants()
+	applicants := Applicants()
 	for i := 0; i < applicants.Len(); i++ {
 		node := applicants.Index(i).(*Node)
-		if p.id != node.Id {
-			err := p.communication.NodeStorageInfoReply(p.id, node.Id, p.delegate.LocalNodeStorageInfo())
+		if p.id != Id {
+			err := NodeStorageInfoReply(p.id, Id, LocalNodeStorageInfo())
 			if err != nil {
-				log.Errorf("contact cluster[%d->%d] error", p.id, node.Id)
+				log.Errorf("contact cluster[%d->%d] error", p.id, Id)
 			}
 		}
 	}
@@ -156,14 +156,14 @@ func (p *Cluster) contactCluster() {
 func (p *Cluster) JoinNode(nodeId int32, partitionSize int, replicaSize int) {
 	node := p.transport.Node(nodeId)
 
-	p.warehouse.AddNode(NewNode(node.Addr.String(), int(node.Port), 1), partitionSize, replicaSize)
-	p.warehouse.Group()
+	AddNode(NewNode(node.Addr.String(), int(node.Port), 1), partitionSize, replicaSize)
+	Group()
 
 }
 
 func (p *Cluster) packetInLoop() {
 	for {
-		packet := <-p.packetPipeline.InRead()
+		packet := <-InRead()
 		log.Debugf("send packet[%s]", packet.String())
 		bytes, err := proto.Marshal(packet)
 		if err != nil {
@@ -191,12 +191,12 @@ func (p *Cluster) packetInLoop() {
 
 func (p *Cluster) packetOutLoop() {
 	for {
-		packet := <-p.packetPipeline.OutRead()
+		packet := <-OutRead()
 		log.Debugf("received packet[%s]", packet.String())
 		go func() {
-			err := p.packetDispatcher.Dispatch(*packet)
+			err := Dispatch(*packet)
 			if err != nil {
-				p.packetPipeline.OutWrite(packet)
+				OutWrite(packet)
 			}
 		}()
 	}

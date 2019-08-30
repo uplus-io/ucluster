@@ -1,4 +1,4 @@
-package ucluster
+package v1
 
 import "errors"
 
@@ -34,7 +34,7 @@ func (p *UCluster) Serving() (error) {
 	}
 	cluster := NewCluster(*p.config)
 	p.cluster = cluster
-	cluster.Listen()
+	Listen()
 	return nil
 }
 

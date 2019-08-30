@@ -1,6 +1,6 @@
-package ucluster
+package v1
 
-import "github.com/uplus-io/ucluster/model"
+import "github.com/uplus-io/ucluster/v1/model"
 
 type ClusterPipeline struct {
 	pipeline PacketPipeline
@@ -11,9 +11,9 @@ func NewClusterPipeline(pipeline PacketPipeline) *ClusterPipeline {
 }
 
 func (p *ClusterPipeline) SyncSend(packet *model.Packet) *model.Packet {
-	channel := p.pipeline.InSyncWrite(packet)
-	return <-channel.Read()
+	channel := InSyncWrite(packet)
+	return <-Read()
 }
 func (p *ClusterPipeline) ASyncSend(packet *model.Packet) {
-	p.pipeline.InWrite(packet)
+	InWrite(packet)
 }

@@ -1,7 +1,7 @@
-package ucluster
+package v1
 
 import (
-	"github.com/uplus-io/ucluster/model"
+	"github.com/uplus-io/ucluster/v1/model"
 )
 
 type PacketQueue struct {

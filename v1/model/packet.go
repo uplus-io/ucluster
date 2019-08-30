@@ -57,7 +57,7 @@ func UnpackSystemMessage(packet *Packet, systemMessage *SystemMessage, message p
 	if err != nil {
 		return
 	}
-	err = proto.Unmarshal(systemMessage.Content, message)
+	err = proto.Unmarshal(Content, message)
 	if err != nil {
 		return
 	}

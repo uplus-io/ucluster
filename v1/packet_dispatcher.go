@@ -2,9 +2,11 @@
  * Copyright (c) 2019 uplus.io
  */
 
-package ucluster
+package v1
 
-import "github.com/uplus-io/ucluster/model"
+import (
+	"github.com/uplus-io/ucluster/v1/model"
+)
 
 type PacketDispatcher interface {
 	Dispatch(packet model.Packet) error

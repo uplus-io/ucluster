@@ -1,6 +1,8 @@
-package ucluster
+package v1
 
-import "github.com/uplus-io/ucluster/model"
+import (
+	"github.com/uplus-io/ucluster/v1/model"
+)
 
 type ClusterDelegate interface {
 	LocalNodeStorageInfo() *model.NodeStorageInfo

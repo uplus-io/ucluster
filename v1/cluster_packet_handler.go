@@ -1,7 +1,7 @@
-package ucluster
+package v1
 
 import (
-	"github.com/uplus-io/ucluster/model"
+	"github.com/uplus-io/ucluster/v1/model"
 	log "github.com/uplus-io/ugo/logger"
 	"github.com/uplus-io/ugo/proto"
 )
@@ -65,25 +65,25 @@ func (p *ClusterPacketDispatcher) systemHandle(packet model.Packet) error {
 	case model.SystemMessageType_DATA_PULL_REPLY:
 		return p.systemDataPullReplyHandle(packet)
 	default:
-		return p.cluster.messageDelegate.System(p.cluster.pipeline, *message)
+		return System(pipeline, *message)
 	}
 }
 func (p *ClusterPacketDispatcher) systemNodeInfoHandle(packet model.Packet) error {
-	storageInfo := p.cluster.delegate.LocalNodeStorageInfo()
-	return p.cluster.communication.NodeStorageInfoReply(packet.To, packet.From, storageInfo)
+	storageInfo := LocalNodeStorageInfo()
+	return NodeStorageInfoReply(packet.To, packet.From, storageInfo)
 }
 func (p *ClusterPacketDispatcher) systemNodeInfoReplyHandle(packet model.Packet) error {
 	message := &model.SystemMessage{}
 	storageInfo := &model.NodeStorageInfo{}
 	model.UnpackSystemMessage(&packet, message, storageInfo)
-	p.cluster.JoinNode(packet.From, int(storageInfo.PartitionSize), int(storageInfo.ReplicaSize))
+	JoinNode(packet.From, int(storageInfo.PartitionSize), int(storageInfo.ReplicaSize))
 	return nil
 }
 func (p *ClusterPacketDispatcher) systemDataMigrateHandle(packet model.Packet) error {
 	message := &model.SystemMessage{}
 	request := &model.DataMigrateRequest{}
 	model.UnpackSystemMessage(&packet, message, request)
-	p.cluster.localDataOperations.Migrate(packet.From, packet.To, request.StartRing, request.EndRing)
+	Migrate(packet.From, packet.To, request.StartRing, request.EndRing)
 	return nil
 }
 func (p *ClusterPacketDispatcher) systemDataMigrateReplyHandle(packet model.Packet) error {
@@ -97,7 +97,7 @@ func (p *ClusterPacketDispatcher) systemDataPushHandle(packet model.Packet) erro
 	message := &model.SystemMessage{}
 	pushRequest := &model.PushRequest{}
 	model.UnpackSystemMessage(&packet, message, pushRequest)
-	p.cluster.localDataOperations.Push(packet.From, packet.To, pushRequest.Data)
+	Push(packet.From, packet.To, pushRequest.Data)
 	return nil
 }
 func (p *ClusterPacketDispatcher) systemDataPushReplyHandle(packet model.Packet) error {
@@ -117,15 +117,15 @@ func (p *ClusterPacketDispatcher) systemDataPullReplyHandle(packet model.Packet)
 func (p *ClusterPacketDispatcher) eventHandle(packet model.Packet) error {
 	message := model.EventMessage{}
 	proto.Unmarshal(packet.Content, &message)
-	return p.cluster.messageDelegate.Event(p.cluster.pipeline, message)
+	return Event(pipeline, message)
 }
 func (p *ClusterPacketDispatcher) topicHandle(packet model.Packet) error {
 	message := model.TopicMessage{}
 	proto.Unmarshal(packet.Content, &message)
-	return p.cluster.messageDelegate.Topic(p.cluster.pipeline, message)
+	return Topic(pipeline, message)
 }
 func (p *ClusterPacketDispatcher) dataHandle(packet model.Packet) error {
 	message := model.DataMessage{}
 	proto.Unmarshal(packet.Content, &message)
-	return p.cluster.messageDelegate.Data(p.cluster.pipeline, message)
+	return Data(pipeline, message)
 }
