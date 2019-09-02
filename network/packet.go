@@ -3,6 +3,7 @@ package network
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/uplus-io/ucluster/proto"
 	"github.com/uplus-io/ugo/goproto"
@@ -10,12 +11,13 @@ import (
 
 const (
 	CONST_HEADER_LENGTH int = 4
-	HEADER_FORMAT           = "UP.%d"
+	HEADER_PREFIX           = "UP.";
+	HEADER_FORMAT           = HEADER_PREFIX + "%d"
 )
 
 func Pack(message proto.Message) ([]byte, error) {
 	var err error
-	var length,headerLength int32
+	var length, headerLength int32
 
 	data, err := goproto.Marshal(&message)
 	length = int32(len(data))
@@ -35,7 +37,7 @@ func Pack(message proto.Message) ([]byte, error) {
 	return buffer.Bytes(), err
 }
 
-func Unpack(source []byte) (proto.Message, error) {
+func Unpack(source []byte) (*proto.Message, error) {
 	reader := bytes.NewReader(source)
 	var length int32
 	var headerLength int32
@@ -44,13 +46,18 @@ func Unpack(source []byte) (proto.Message, error) {
 	var err error
 	err = binary.Read(reader, binary.LittleEndian, &length)
 	err = binary.Read(reader, binary.LittleEndian, &headerLength)
-	headerData = make([]byte,headerLength)
+	headerData = make([]byte, headerLength)
 	err = binary.Read(reader, binary.LittleEndian, &headerData)
+
+	index := bytes.Index(headerData, []byte(HEADER_PREFIX))
+	if index != 0 {
+		return nil, errors.New("header verify failed")
+	}
 	length -= headerLength
 	length -= 8
-	data = make([]byte,length)
+	data = make([]byte, length)
 	err = binary.Read(reader, binary.LittleEndian, &data)
 	message := &proto.Message{}
 	err = goproto.Unmarshal(data, message)
-	return *message, err
+	return message, err
 }
